@@ -13,3 +13,19 @@ data:extend({{
     default_value = true,
     order = "a"
 }})
+
+data:extend({{
+    type = "bool-setting",
+    name = "skip-ahead",
+    setting_type = "runtime-global",
+    default_value = true,
+    order = "b"
+}, {
+    type = "int-setting",
+    name = "skip-ahead-ticks",
+    setting_type = "runtime-global",
+    default_value = 60,
+    minimum_value = 1,
+    maximum_value = 3600,
+    order = "c"
+}})

@@ -1,12 +1,12 @@
 {
     "name": "item-cam-2",
-    "version": "0.10.1",
+    "version": "0.11.0",
     "title": "Item Cam 2",
     "author": "HermanyAI",
-    "factorio_version": "2.0",
+    "factorio_version": "2.1",
     "dependencies": [
-        "base >= 2.0.59",
-        "? space-age >= 2.0.59",
+        "base >= 2.1.0",
+        "? space-age >= 2.1.0",
         "(?) tile-upgrade-planner >= 20.0.1"
     ],
     "description": "Follow an item as it's processed, like in the Factorio trailer. Spiritual successor to DaveMcW's Item Cam"

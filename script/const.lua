@@ -24,6 +24,8 @@ const.zoom_minimum = 0.3
 
 const.name_setting_debug_tracker = "debug-tracker"
 const.name_setting_camera_stopping_opens_remote = "camera-stopping-opens-remote"
+const.name_setting_skip_ahead = "skip-ahead"
+const.name_setting_skip_ahead_ticks = "skip-ahead-ticks"
 
 const.name_options_shortcut = "item-cam-options"
 const.name_shortcut = "item-cam"
@@ -37,6 +39,9 @@ const.inserter_search_d = 2.2
 const.inserter_search_d_picking_up_feather = 0.08
 const.loader_search_d = 1.5
 const.robot_search_d = 0
+const.belt_skip_ahead_max_belts = 64
+const.belt_skip_ahead_inserter_search_d = 6
+const.skip_ahead_retry_ticks = 10
 const.smooth_end_feather = 0.05
 
 -- Building direction -> belt piece direction -> target line_idx

@@ -6,6 +6,7 @@ local utility = require("utility")
 --- @field handle LuaEntity
 --- @field pin any
 --- @field item_wl? FocusItemWhitelist Future item lookup whitelist
+--- @field stuck_ticks? integer Ticks waited in a building without being taken out, for skip ahead
 
 local create = {}
 
@@ -43,6 +44,9 @@ end
 --- @field it DetailedItemOnLine
 --- @field id integer
 --- @field line_idx integer
+--- @field last_position? number Line position seen last tick, for belt skip ahead
+--- @field stuck_ticks? integer Ticks the item stood still, for belt skip ahead
+--- @field stretch? BeltStuckStretch Belt stretch watched while stuck, for belt skip ahead
 
 --- @param item_on_line DetailedItemOnLine
 --- @param line_idx integer

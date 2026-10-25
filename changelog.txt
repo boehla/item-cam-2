@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.11.0
+Date: 2026-10-25
+  Features:
+    - Added setting "Skip ahead when stuck" (on by default): on a full belt, cam jumps to the frontmost same item downstream and follows the first same item an inserter picks up from that stretch. If nothing gets taken out of a building (chest, wagon, full crafter output), cam follows an inserter already holding the same item from there. An inserter that can't drop onto a full belt hands over to the frontmost same item on it
+    - Added setting "Ticks until item counts as stuck", 60 by default
+  Changes:
+    - Ported to Factorio 2.1 (underground belts use LuaEntity::underground_belt_neighbour)
+    - Replaced __CONTROL_STYLE_BEGIN__ / __CONTROL_STYLE_END__ in locale with rich text, they crash headless 2.1.23 on load
+  Bugfixes:
+    - Fixed remote interface focus_start_from_point not resolving its surface argument
+---------------------------------------------------------------------------------------------------
 Version: 0.10.1
 Date: 2025-09-27
   Bugfixes:

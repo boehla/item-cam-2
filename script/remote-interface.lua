@@ -99,7 +99,7 @@ remote.add_interface("item-cam-2", {
     focus_start_from_point = function (focus_id, surface, position)
         local focus = get_focus_assertive(focus_id, false)
 
-        local surface_resolved
+        local surface_resolved = surface
         if type(surface) ~= "userdata" then
             --- @cast surface -LuaSurface
             surface_resolved = game.get_surface(surface)
@@ -109,7 +109,7 @@ remote.add_interface("item-cam-2", {
         assert(surface_resolved ~= nil, "surface resolved to nil")
         sanitize_position_assertive(position, "position")
 
-        local watchdog_resolved = focus_select.at_position(surface, position)
+        local watchdog_resolved = focus_select.at_position(surface_resolved, position)
         if watchdog_resolved == nil
             then return false end
 

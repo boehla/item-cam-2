@@ -3,6 +3,7 @@ local utility = require("utility")
 local watchdog = require("focus-watchdog")
 local transfer_to = require("focus-transfer")
 local follow_rules = require("focus-follow-rules")
+local skip_ahead = require("skip-ahead")
 
 local handle_invalid_map = {}
 local tick_map = {}
@@ -37,7 +38,7 @@ local belt_advance_strategy = {
     end,
     ["underground-belt"] = function (handle)
         if handle.belt_to_ground_type == "input" then
-            return {handle, handle.neighbours}
+            return {handle, handle.underground_belt_neighbour}
         else
             return {handle, handle.belt_neighbours.outputs}
         end
@@ -76,6 +77,10 @@ tick_map["item-on-belt"] = function (focus, handle, pin)
     local it = utility.first_on_line(handle.get_transport_line(pin.line_idx), seek_fn)
     if it ~= nil then
         pin.it = it
+        local skipped_to = skip_ahead.belt_tick(focus, handle, pin)
+        if skipped_to ~= nil then
+            focus.watching = skipped_to
+        end
         return
     end
 
@@ -119,8 +124,13 @@ end
 --- @param focus FocusInstance
 --- @param handle LuaEntity
 tick_map["item-in-inserter-hand"] = function (focus, handle)
-    if handle.held_stack.valid_for_read
-        then return end
+    if handle.held_stack.valid_for_read then
+        local skipped_to = skip_ahead.inserter_tick(focus, handle)
+        if skipped_to ~= nil then
+            focus.watching = skipped_to
+        end
+        return
+    end
 
     utility.debug("watchdog changing: held_stack.valid_for_read false")
 
@@ -159,6 +169,16 @@ tick_map["item-in-container"] = function (focus, handle)
     local first_taken_by = transfer_to.taken_out_of_building(focus, handle, focus.watching.item_wl)
     if first_taken_by ~= nil then
         focus.watching =  first_taken_by
+        return
+    end
+
+    -- Shared with robots, towers etc. which aren't stuck just because nothing was taken out yet
+    local watching_type = focus.watching.type
+    if watching_type == "item-in-container" or watching_type == "item-in-container-with-cargo-hatches" then
+        local skipped_to = skip_ahead.building_tick(focus, handle, focus.watching.item_wl)
+        if skipped_to ~= nil then
+            focus.watching = skipped_to
+        end
     end
 end
 local item_in_container = tick_map["item-in-container"]
@@ -168,6 +188,7 @@ local item_in_container = tick_map["item-in-container"]
 --- @param pin PinItemInCraftingMachine
 tick_map["item-in-crafting-machine"] = function (focus, handle, pin)
     if handle.products_finished == pin.initial_products_finished
+        and not skip_ahead.is_output_backed_up(handle)
         then return end
 
     if not pin.announced_change then
@@ -191,6 +212,12 @@ tick_map["item-in-crafting-machine"] = function (focus, handle, pin)
     if first_taken_by ~= nil then
         -- Crafting machine put its (first) output here
         focus.watching = first_taken_by
+        return
+    end
+
+    local skipped_to = skip_ahead.building_tick(focus, handle, item_wl)
+    if skipped_to ~= nil then
+        focus.watching = skipped_to
     end
 end
 
