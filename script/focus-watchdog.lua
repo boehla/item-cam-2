@@ -101,6 +101,7 @@ end
 
 --- @class PinItemHeldByRobot
 --- @field drop_target LuaEntity
+--- @field ghost? {name: string, position: MapPosition, surface: LuaSurface} Set when the robot builds a ghost with the item
 
 --- @param entity LuaEntity
 --- @param item PrototypeWithQuality
@@ -108,6 +109,11 @@ function create.item_held_by_robot(entity, item)
     local first_order = entity.robot_order_queue[1]
     local drop_target = first_order.target or first_order.secondary_target
     assert(drop_target, "robot has no drop target")
+
+    local ghost = nil
+    if drop_target.type == "entity-ghost" then
+        ghost = {name = drop_target.ghost_name, position = drop_target.position, surface = drop_target.surface}
+    end
 
     --- @type FocusWatchdog
     return {
@@ -117,7 +123,8 @@ function create.item_held_by_robot(entity, item)
         item_wl = {item = item},
         --- @type PinItemHeldByRobot
         pin = {
-            drop_target = drop_target
+            drop_target = drop_target,
+            ghost = ghost
         }
     }
 end
@@ -262,6 +269,18 @@ function create.end_lab(entity)
     }
 end
 
+--- Item was placed as a building. Nothing follows; the cam rests on the new building
+--- @param entity LuaEntity
+function create.end_built(entity)
+    --- @type FocusWatchdog
+    return {
+        type = "end-built",
+        valid = true,
+        handle = entity,
+        item_wl = utility.__no_wl
+    }
+end
+
 --- @class PinUnit
 --- @field highest_commandable? LuaCommandable
 
@@ -311,6 +330,7 @@ local get_position = {
     ["plant-growing"] = just_get_handle_selection_box,
     ["item-coming-from-agricultural-tower"] = just_get_handle_pos,
     ["end-lab"] = just_get_handle_pos,
+    ["end-built"] = just_get_handle_pos,
     ["unit"] = just_get_handle_pos -- TODO: Follow the commandable group
 }
 
@@ -336,6 +356,7 @@ local get_surface = {
     ["plant-growing"] = just_get_handle_surface,
     ["item-coming-from-agricultural-tower"] = just_get_handle_surface,
     ["end-lab"] = just_get_handle_surface,
+    ["end-built"] = just_get_handle_surface,
     ["unit"] = just_get_handle_surface
 }
 

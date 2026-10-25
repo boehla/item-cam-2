@@ -266,6 +266,17 @@ tick_map["item-held-by-robot"] = function (focus, handle, pin)
 
     utility.debug("watchdog changing: first robot order no longer deliver or target changed")
 
+    local ghost = pin.ghost
+    if ghost ~= nil and (drop_target == nil or not drop_target.valid) then
+        -- Ghost got revived: the item is now that building
+        local built = ghost.surface.find_entities_filtered({name = ghost.name, position = ghost.position, limit = 1})[1]
+        if built ~= nil then
+            utility.debug("watchdog changing: robot built its ghost")
+            focus.watching = watchdog.create.end_built(built)
+            return
+        end
+    end
+
     if drop_target == nil or not drop_target.valid then
         utility.debug("watchdog lost: invalid drop_target")
         focus.watching.valid = false
@@ -478,6 +489,10 @@ tick_map["item-coming-from-agricultural-tower"] = function (focus, handle)
 end
 
 tick_map["end-lab"] = function ()
+    -- End of the line
+end
+
+tick_map["end-built"] = function ()
     -- End of the line
 end
 

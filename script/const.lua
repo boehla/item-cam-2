@@ -127,7 +127,9 @@ const.all_pickup_robot_order = {
 }
 const.all_deliver_robot_order = {
     [defines.robot_order_type.deliver] = true,
-    [defines.robot_order_type.deliver_items] = true
+    [defines.robot_order_type.deliver_items] = true,
+    -- Construction robot carrying the item to build its ghost
+    [defines.robot_order_type.construct] = true
 }
 
 return const
