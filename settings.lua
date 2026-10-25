@@ -29,3 +29,12 @@ data:extend({{
     maximum_value = 3600,
     order = "c"
 }})
+
+data:extend({{
+    type = "string-setting",
+    name = "multiple-outputs",
+    setting_type = "runtime-global",
+    default_value = "main-product",
+    allowed_values = {"first-out", "main-product", "new-item"},
+    order = "d"
+}})

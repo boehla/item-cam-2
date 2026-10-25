@@ -26,6 +26,7 @@ const.name_setting_debug_tracker = "debug-tracker"
 const.name_setting_camera_stopping_opens_remote = "camera-stopping-opens-remote"
 const.name_setting_skip_ahead = "skip-ahead"
 const.name_setting_skip_ahead_ticks = "skip-ahead-ticks"
+const.name_setting_multiple_outputs = "multiple-outputs"
 
 const.name_options_shortcut = "item-cam-options"
 const.name_shortcut = "item-cam"

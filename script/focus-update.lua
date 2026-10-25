@@ -183,6 +183,34 @@ tick_map["item-in-container"] = function (focus, handle)
 end
 local item_in_container = tick_map["item-in-container"]
 
+--- Which products of a recipe with multiple outputs to follow, see setting "multiple-outputs"
+--- @param focus FocusInstance
+--- @param recipe_proto LuaRecipePrototype
+--- @return string[]?
+local function pick_crafter_products(focus, recipe_proto)
+    local items = utility.products_filtered(recipe_proto.products, {items = true})
+    if items == nil or #items == 1
+        then return items end
+
+    local mode = focus.multiple_outputs or settings.global[const.name_setting_multiple_outputs].value
+    if mode == "first-out"
+        then return items end
+
+    local main = recipe_proto.main_product
+    local main_name = main ~= nil and main.type == "item" and main.name or nil
+    if mode == "new-item" and focus.seen_items ~= nil then
+        if main_name ~= nil and not focus.seen_items[main_name]
+            then return {main_name} end
+        for _, name in ipairs(items) do
+            if not focus.seen_items[name]
+                then return {name} end
+        end
+    end
+    if main_name ~= nil
+        then return {main_name} end
+    return items
+end
+
 --- @param focus FocusInstance
 --- @param handle LuaEntity
 --- @param pin PinItemInCraftingMachine
@@ -203,8 +231,10 @@ tick_map["item-in-crafting-machine"] = function (focus, handle, pin)
             then return end
         local recipe_proto = prototypes.recipe[recipe_set.name]
         item_wl = {
-            items = utility.products_filtered(recipe_proto.products, {items = true})
+            items = pick_crafter_products(focus, recipe_proto)
         }
+        -- Recipe products don't change while we wait, no need to look them up every tick
+        focus.watching.item_wl = item_wl
     end
 
     local has_drop_target = handle.prototype.vector_to_place_result ~= nil
@@ -580,6 +610,21 @@ local function extend_smooth(focus, kind, type)
     utility.debug("smoothing extended "..extended_by.." ticks: "..serpent.line(prev).." -> "..serpent.line(next))
 end
 
+--- Items the cam already followed, so "new-item" mode doesn't go round in circles
+--- @param focus FocusInstance
+local function remember_seen_items(focus)
+    local item_wl = focus.watching.item_wl
+    if item_wl == nil
+        then return end
+    focus.seen_items = focus.seen_items or {}
+    if item_wl.item ~= nil then
+        focus.seen_items[item_wl.item.name] = true
+    end
+    for _, name in ipairs(item_wl.items or {}) do
+        focus.seen_items[name] = true
+    end
+end
+
 --- @param map table<string, fun(focus: FocusInstance, handle: LuaEntity, pin?: any, cause_entity?: LuaEntity): boolean>
 --- @param focus FocusInstance
 --- @param cause_entity? LuaEntity
@@ -601,6 +646,7 @@ local function apply_fn(map, focus, cause_entity)
 
     utility.debug("focus watchdog changed from "..last_watching.type.." to "..focus.watching.type)
     follow_rules.apply_matching(focus)
+    remember_seen_items(focus)
 
     utility.raise_event(const.events.on_focus_switch, {
         focus_id = focus.id,

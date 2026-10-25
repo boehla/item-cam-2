@@ -35,6 +35,8 @@ local controllables = {
 --- @field position MapPosition
 --- @field smooth_position MapPosition
 --- @field surface LuaSurface
+--- @field seen_items? table<string, true> Items already followed, for multiple-outputs "new-item"
+--- @field multiple_outputs? string Overrides setting multiple-outputs for this focus
 
 --- @param follow_rules? FollowRule[]
 function focus_behavior.create(follow_rules)
