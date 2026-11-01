@@ -79,18 +79,34 @@ end
 --- @param target_belt_entity LuaEntity
 --- @param item_wl FocusItemWhitelist
 function transfer_to.newest_item_on_belt(focus, target_belt_entity, item_wl)
-    local best_guess, line_idx = utility.minimum_on_belt(target_belt_entity, function (candidate, line_idx)
-        utility.debug_item_on_line(candidate, line_idx, target_belt_entity, const.__dc_min_cand)
-        if not utility.is_item_filtered(candidate.stack, item_wl)
-            then return end
+    local function newest_on(belt)
+        return utility.minimum_on_belt(belt, function (candidate, line_idx)
+            utility.debug_item_on_line(candidate, line_idx, belt, const.__dc_min_cand)
+            if not utility.is_item_filtered(candidate.stack, item_wl)
+                then return end
 
-        utility.debug_item_on_line(candidate, line_idx, target_belt_entity, const.__dc_min_pass)
-        return -candidate.unique_id -- Pick newest
-    end)
+            utility.debug_item_on_line(candidate, line_idx, belt, const.__dc_min_pass)
+            return -candidate.unique_id -- Pick newest
+        end)
+    end
+
+    local best_guess, line_idx = newest_on(target_belt_entity)
+    local on_belt = target_belt_entity
+    if best_guess == nil then
+        -- Dropped onto a short piece (underground exit) of a fast belt: by the time we look, the item already moved
+        -- on to the next belt (pY moss chain: burner inserter -> underground exit -> sushi lane; focus got lost)
+        for _, next_belt in ipairs(target_belt_entity.belt_neighbours.outputs) do
+            best_guess, line_idx = newest_on(next_belt)
+            if best_guess ~= nil then
+                on_belt = next_belt
+                break
+            end
+        end
+    end
 
     if best_guess and line_idx then
-        utility.debug_item_on_line(best_guess, line_idx, target_belt_entity, const.__dc_min_pick)
-        return watchdog.create.item_on_belt(best_guess, line_idx, target_belt_entity)
+        utility.debug_item_on_line(best_guess, line_idx, on_belt, const.__dc_min_pick)
+        return watchdog.create.item_on_belt(best_guess, line_idx, on_belt)
     end
 end
 
@@ -213,6 +229,10 @@ function transfer_to.next(focus, entity, item_wl)
     if entity_type == "lab" then
         return watchdog.create.end_lab(entity)
     end
+    if entity_type == "roboport" then
+        assert(item_wl.item, "expected whitelist on item")
+        return watchdog.create.item_in_roboport(entity, item_wl.item)
+    end
     if entity_type == "item-entity" then
         return watchdog.create.item_on_ground(entity)
     end
@@ -267,6 +287,9 @@ function transfer_to.taken_out_of_building(focus, entity, item_wl, also_drop_tar
     local entity_box = utility.rotated_selection_box(entity)
     utility.debug_area(entity.surface, entity_box, const.__dc_bounding_real)
 
+    -- Robots only bring things to a requester chest. One arriving with more of our item isn't taking ours
+    local robots_take = entity.type ~= "logistic-container" or entity.prototype.logistic_mode ~= "requester"
+
     return
         (also_drop_target and transfer_to.drop_target(focus, entity, item_wl))
         or transfer_to.inserter_nearby(
@@ -284,7 +307,7 @@ function transfer_to.taken_out_of_building(focus, entity, item_wl, also_drop_tar
             utility.aabb_expand(entity_box, const.loader_search_d),
             item_wl,
             {source = entity}
-        ) or transfer_to.robot_nearby(
+        ) or (robots_take or nil) and transfer_to.robot_nearby(
             focus,
             entity.surface,
             entity.force,

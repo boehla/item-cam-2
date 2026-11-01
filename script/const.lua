@@ -25,8 +25,11 @@ const.zoom_minimum = 0.3
 const.name_setting_debug_tracker = "debug-tracker"
 const.name_setting_camera_stopping_opens_remote = "camera-stopping-opens-remote"
 const.name_setting_skip_ahead = "skip-ahead"
+const.name_setting_skip_ahead_belts = "skip-ahead-belts"
 const.name_setting_skip_ahead_ticks = "skip-ahead-ticks"
 const.name_setting_multiple_outputs = "multiple-outputs"
+const.name_setting_fluid_speed = "fluid-speed"
+const.name_setting_fluid_highlight = "fluid-highlight"
 
 const.name_options_shortcut = "item-cam-options"
 const.name_shortcut = "item-cam"
@@ -37,6 +40,12 @@ const.name_trigger_check_cargo_pod_follow = "check-cargo-pod-follow"
 const.name_trigger_check_plant_follow = "check-plant-follow"
 
 const.inserter_search_d = 2.2
+-- A robot leaving a roboport shows up this close to its centre
+const.roboport_launch_radius = 4
+-- pY dig site: food goes into this hidden chest and gets eaten by script; the digosaur it sends off
+-- spawns 2.5 tiles from the dig site's centre
+const.dig_site_food_input = "dino-dig-site-food-input"
+const.dig_site_spawn_radius = 4
 const.inserter_search_d_picking_up_feather = 0.08
 const.loader_search_d = 1.5
 const.robot_search_d = 0
@@ -44,6 +53,12 @@ const.belt_skip_ahead_max_belts = 64
 const.belt_skip_ahead_inserter_search_d = 6
 const.skip_ahead_retry_ticks = 10
 const.smooth_end_feather = 0.05
+const.fluid_route_max_nodes = 20000
+const.fluid_route_retry_ticks = 60
+const.fluid_highlight_max_edges = 1500
+const.fluid_highlight_dash = 0.36 -- tiles, caps included
+const.fluid_highlight_gap = 0.14 -- dash + gap = half a tile, lines up with the pipe grid
+const.fluid_wagon_search_d = 1.5
 
 -- Building direction -> belt piece direction -> target line_idx
 const.drop_belt_line_idx = {

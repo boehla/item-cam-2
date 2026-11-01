@@ -7,7 +7,16 @@ local transfer_to = require("focus-transfer")
 --- - On a full belt, jump to the frontmost item of the same kind downstream
 ---   and follow the first one an inserter picks up anywhere on that belt stretch.
 --- - In a building whose output is backed up, follow an inserter that already holds the same item from there.
+--- Setting "skip-ahead-belts" turns off the belt part (full belt, inserter that can't drop onto one): those
+--- hand over to another piece, often many tiles away. Every watchdog a skip hands over to carries `skipped`
+--- ("belt", "inserter" or "building"), so a caller can tell the followed piece changed.
 local skip_ahead = {}
+
+--- @param belts boolean Skip on full belts too
+local function enabled(belts)
+    return settings.global[const.name_setting_skip_ahead].value
+        and (not belts or settings.global[const.name_setting_skip_ahead_belts].value)
+end
 
 --- @class BeltStuckStretch
 --- @field owners table<integer, true> unit_number of every belt entity in the stretch
@@ -153,7 +162,9 @@ local function inserter_picking_from_stretch(focus, surface, force, stretch, ite
         then
             utility.debug("belt skip ahead: inserter picked same item from stuck stretch")
             utility.debug_pos(surface, candidate.position, const.__dc_min_pick)
-            return watchdog.create.item_in_inserter_hand(candidate)
+            local picked = watchdog.create.item_in_inserter_hand(candidate)
+            picked.skipped = "belt"
+            return picked
         end
     end
 end
@@ -166,7 +177,7 @@ end
 --- @param current_id? integer unique_id of the item already followed, no jump if it's the frontmost
 --- @param stuck_ticks integer
 --- @return BeltStuckStretch, FocusWatchdog?
-local function enter_stuck_stretch(belt, line_idx, item_wl, current_id, stuck_ticks)
+local function enter_stuck_stretch(belt, line_idx, item_wl, current_id, stuck_ticks, reason)
     local lane_parity = line_idx % 2
     local belts, hit_limit = belts_downstream(belt, lane_parity)
     local stretch = stretch_of(belts)
@@ -177,6 +188,7 @@ local function enter_stuck_stretch(belt, line_idx, item_wl, current_id, stuck_ti
 
     utility.debug("skip ahead: jumping to frontmost item of stretch, "..#belts.." belts")
     local jumped = watchdog.create.item_on_belt(front_it, front_line_idx, front_belt)
+    jumped.skipped = reason
     jumped.pin.last_position = front_it.position
     if hit_limit then
         -- Jam goes on. Let the jumped item get stuck again and hop the next stretch from there
@@ -194,7 +206,7 @@ end
 --- @param pin PinItemOnBelt
 --- @return FocusWatchdog? Watchdog to switch to, if any
 function skip_ahead.belt_tick(focus, handle, pin)
-    if not settings.global[const.name_setting_skip_ahead].value then
+    if not enabled(true) then
         pin.stuck_ticks = nil
         pin.stretch = nil
         return
@@ -220,7 +232,7 @@ function skip_ahead.belt_tick(focus, handle, pin)
 
     if pin.stretch == nil then
         utility.debug("belt skip ahead: item stuck for "..pin.stuck_ticks.." ticks")
-        local stretch, jumped = enter_stuck_stretch(handle, pin.line_idx, item_wl, pin.id, pin.stuck_ticks)
+        local stretch, jumped = enter_stuck_stretch(handle, pin.line_idx, item_wl, pin.id, pin.stuck_ticks, "belt")
         pin.stretch = stretch
         if jumped ~= nil
             then return jumped end
@@ -235,7 +247,7 @@ end
 --- @return FocusWatchdog? Watchdog to switch to, if any
 function skip_ahead.inserter_tick(focus, handle)
     local watching = focus.watching
-    if not settings.global[const.name_setting_skip_ahead].value then
+    if not enabled(true) then
         watching.stuck_ticks = nil
         return
     end
@@ -264,7 +276,7 @@ function skip_ahead.inserter_tick(focus, handle)
         then return end
 
     utility.debug("inserter skip ahead: can't drop for "..threshold.." ticks")
-    local _, jumped = enter_stuck_stretch(drop_target, drop_line_idx, watching.item_wl, nil, threshold)
+    local _, jumped = enter_stuck_stretch(drop_target, drop_line_idx, watching.item_wl, nil, threshold, "inserter")
     return jumped
 end
 
@@ -295,7 +307,7 @@ function skip_ahead.building_tick(focus, handle, item_wl)
 
     -- Output is backed up, nothing gets picked up fresh. An inserter already holding the same item
     -- from here, waiting to drop it, is the next one out
-    return transfer_to.inserter_nearby(
+    local holding = transfer_to.inserter_nearby(
         focus,
         handle.surface,
         handle.force,
@@ -304,6 +316,10 @@ function skip_ahead.building_tick(focus, handle, item_wl)
         item_wl,
         {source = handle}
     )
+    if holding ~= nil then
+        holding.skipped = "building"
+    end
+    return holding
 end
 
 return skip_ahead

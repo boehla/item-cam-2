@@ -4,6 +4,7 @@ local watchdog = require("focus-watchdog")
 local transfer_to = require("focus-transfer")
 local follow_rules = require("focus-follow-rules")
 local skip_ahead = require("skip-ahead")
+local fluid_flow = require("fluid-flow")
 
 local handle_invalid_map = {}
 local tick_map = {}
@@ -183,41 +184,79 @@ tick_map["item-in-container"] = function (focus, handle)
 end
 local item_in_container = tick_map["item-in-container"]
 
---- Which products of a recipe with multiple outputs to follow, see setting "multiple-outputs"
+--- Which products of a recipe with multiple outputs to follow, see setting "multiple-outputs".
+--- Fluids are followed when the recipe makes nothing else, or when they're the main product
 --- @param focus FocusInstance
 --- @param recipe_proto LuaRecipePrototype
---- @return string[]?
+--- @return FocusItemWhitelist?
 local function pick_crafter_products(focus, recipe_proto)
     local items = utility.products_filtered(recipe_proto.products, {items = true})
-    if items == nil or #items == 1
-        then return items end
+    local fluids = utility.products_filtered(recipe_proto.products, {fluids = true})
+
+    -- Scripted focuses can name the products they want to go for
+    for _, name in ipairs(focus.prefer_products or {}) do
+        if items ~= nil and utility.contains(items, name)
+            then return {items = {name}} end
+        if fluids ~= nil and utility.contains(fluids, name)
+            then return {fluid = name} end
+    end
 
     local mode = focus.multiple_outputs or settings.global[const.name_setting_multiple_outputs].value
-    if mode == "first-out"
-        then return items end
-
     local main = recipe_proto.main_product
+    if items == nil then
+        if fluids == nil
+            then return end
+        return {fluid = main ~= nil and main.type == "fluid" and main.name or fluids[1]}
+    end
+    if #items == 1 and fluids == nil
+        then return {items = items} end
+    if mode ~= "first-out" and main ~= nil and main.type == "fluid"
+        then return {fluid = main.name} end
+    if #items == 1 or mode == "first-out"
+        then return {items = items} end
+
     local main_name = main ~= nil and main.type == "item" and main.name or nil
     if mode == "new-item" and focus.seen_items ~= nil then
         if main_name ~= nil and not focus.seen_items[main_name]
-            then return {main_name} end
+            then return {items = {main_name}} end
         for _, name in ipairs(items) do
             if not focus.seen_items[name]
-                then return {name} end
+                then return {items = {name}} end
         end
     end
     if main_name ~= nil
-        then return {main_name} end
-    return items
+        then return {items = {main_name}} end
+    return {items = items}
+end
+
+--- Crafted fluid leaves the crafter: route it to wherever it goes next
+--- @param focus FocusInstance
+--- @param handle LuaEntity
+--- @param fluid string
+--- @return FocusWatchdog?
+local function fluid_out_of_crafter(focus, handle, fluid)
+    local idx = fluid_flow.output_fluidbox(handle, fluid)
+    if idx == nil
+        then return end
+    local route = fluid_flow.route(handle, idx, fluid, focus.fluid_prefer and focus.fluid_prefer[fluid])
+    if route == nil
+        then return end
+    return watchdog.create.fluid_in_pipes(route, fluid, focus.fluid_speed)
 end
 
 --- @param focus FocusInstance
 --- @param handle LuaEntity
 --- @param pin PinItemInCraftingMachine
 tick_map["item-in-crafting-machine"] = function (focus, handle, pin)
-    if handle.products_finished == pin.initial_products_finished
-        and not skip_ahead.is_output_backed_up(handle)
-        then return end
+    if handle.products_finished == pin.initial_products_finished then
+        -- Remember the recipe ours is crafted with: circuit-driven crafters can switch or clear it
+        -- the moment the craft finishes (pY slaughterhouses), and then its products would be wrong
+        local recipe_set = utility.crafter_recipe_proto(handle)
+        if recipe_set ~= nil
+            then pin.recipe_name = recipe_set.name end
+        if not skip_ahead.is_output_backed_up(handle)
+            then return end
+    end
 
     if not pin.announced_change then
         utility.debug("watchdog changing: products_finished increased")
@@ -227,14 +266,26 @@ tick_map["item-in-crafting-machine"] = function (focus, handle, pin)
     local item_wl = focus.watching.item_wl
     if item_wl == nil then
         local recipe_set = utility.crafter_recipe_proto(handle)
-        if recipe_set == nil
+        local recipe_name = pin.recipe_name or (recipe_set and recipe_set.name)
+        if recipe_name == nil
             then return end
-        local recipe_proto = prototypes.recipe[recipe_set.name]
-        item_wl = {
-            items = pick_crafter_products(focus, recipe_proto)
-        }
+        local recipe_proto = prototypes.recipe[recipe_name]
+        item_wl = pick_crafter_products(focus, recipe_proto) or utility.__no_wl
         -- Recipe products don't change while we wait, no need to look them up every tick
         focus.watching.item_wl = item_wl
+    end
+
+    if item_wl.fluid ~= nil then
+        -- Routing walks the whole fluid network, don't do it every tick when nothing leads anywhere
+        if pin.fluid_retry_tick ~= nil and game.tick < pin.fluid_retry_tick
+            then return end
+        local next_watchdog = fluid_out_of_crafter(focus, handle, item_wl.fluid)
+        if next_watchdog ~= nil then
+            focus.watching = next_watchdog
+        else
+            pin.fluid_retry_tick = game.tick + const.fluid_route_retry_ticks
+        end
+        return
     end
 
     local has_drop_target = handle.prototype.vector_to_place_result ~= nil
@@ -284,6 +335,119 @@ tick_map["item-held-by-robot"] = function (focus, handle, pin)
     end
 
     focus.watching =  transfer_to.next(focus, drop_target, focus.watching.item_wl)
+end
+
+--- @param focus FocusInstance
+--- @param handle LuaEntity
+--- @param pin PinItemInRoboport
+tick_map["item-in-roboport"] = function (focus, handle, pin)
+    local name = focus.watching.item_wl.item.name
+    local count = handle.get_inventory(defines.inventory.roboport_robot).get_item_count(name)
+    if count >= pin.count then
+        -- More of them put in after ours: the next one out is still ours
+        pin.count = count
+        return
+    end
+    -- One left: the robot that appeared next to the roboport
+    for _, robot in pairs(handle.surface.find_entities_filtered({name = name, position = handle.position,
+        radius = const.roboport_launch_radius})) do
+        if not pin.known[robot.unit_number] then
+            utility.debug("watchdog changing: robot left the roboport")
+            focus.watching = watchdog.create.robot_flying(robot)
+            return
+        end
+    end
+    -- Not out yet, or it left before we looked: count again next tick
+    pin.count = count
+end
+
+--- @param focus FocusInstance
+--- @param handle LuaEntity
+--- @param pin PinRobotFlying
+tick_map["robot-flying"] = function (focus, handle, pin)
+    if pin.ghost == nil then
+        for _, order in pairs(handle.robot_order_queue) do
+            local target = order.target
+            if target ~= nil and target.valid and target.type == "entity-ghost" then
+                pin.ghost = {name = target.ghost_name, position = target.position, surface = target.surface}
+                break
+            end
+        end
+        return
+    end
+    local ghost = pin.ghost
+    if ghost.surface.find_entities_filtered({type = "entity-ghost", ghost_name = ghost.name, position = ghost.position, limit = 1})[1] ~= nil
+        then return end
+    local built = ghost.surface.find_entities_filtered({name = ghost.name, position = ghost.position, limit = 1})[1]
+    if built ~= nil then
+        utility.debug("watchdog changing: our robot built its first ghost")
+        focus.watching = watchdog.create.end_built(built)
+    end
+end
+
+--- @param focus FocusInstance
+--- @param handle LuaEntity
+--- @param pin PinItemInDigSiteFood
+tick_map["item-in-dig-site-food"] = function (focus, handle, pin)
+    local site = pin.site
+    if not site.valid then
+        utility.debug("watchdog lost: dig site is gone")
+        focus.watching.valid = false
+        return
+    end
+    local count = handle.get_inventory(defines.inventory.chest).get_item_count(focus.watching.item_wl.item.name)
+    if count < pin.count then
+        -- Eaten: the script sends a digosaur off in the same tick
+        for _, unit in pairs(site.surface.find_entities_filtered({type = "unit", position = site.position,
+            radius = const.dig_site_spawn_radius})) do
+            if not pin.known[unit.unit_number] then
+                utility.debug("watchdog changing: food eaten, digosaur leaves")
+                focus.watching = watchdog.create.digosaur(unit, site)
+                return
+            end
+        end
+    end
+    -- More put in after ours, or taken out by someone else: the next one eaten is still ours
+    pin.count = count
+    pin.known = watchdog.units_at_dig_site(site)
+end
+
+--- @param handle LuaEntity
+--- @param pin PinDigosaur
+tick_map["digosaur-digging"] = function (_, handle, pin)
+    -- Other digosaurs bring their ore back meanwhile
+    if not pin.site.valid
+        then return end
+    pin.finished = pin.site.products_finished
+    pin.output = watchdog.dig_site_output(pin.site)
+end
+
+--- @param focus FocusInstance
+--- @param pin PinDigosaur
+handle_invalid_map["digosaur-digging"] = function (focus, _, pin)
+    local site = pin.site
+    if not site.valid or site.products_finished == pin.finished then
+        utility.debug("watchdog lost: digosaur gone without ore")
+        focus.watching.valid = false
+        return
+    end
+    local brought = nil
+    for name, count in pairs(watchdog.dig_site_output(site)) do
+        if count > (pin.output[name] or 0) then
+            brought = name
+            break
+        end
+    end
+    if brought == nil then
+        utility.debug("watchdog lost: digosaur back, no new ore in the output")
+        focus.watching.valid = false
+        return
+    end
+    utility.debug("watchdog changing: digosaur back with "..brought)
+    local next_watching = watchdog.create.item_in_crafting_machine(site)
+    next_watching.pin.initial_products_finished = pin.finished
+    next_watching.item_wl = {items = {brought}}
+    focus.watching = next_watching
 end
 
 --- @param focus FocusInstance
@@ -488,6 +652,73 @@ tick_map["item-coming-from-agricultural-tower"] = function (focus, handle)
     return item_in_container(focus, handle)
 end
 
+--- @param focus FocusInstance
+--- @param handle LuaEntity
+--- @param pin PinFluidInPipes
+tick_map["fluid-in-pipes"] = function (focus, handle, pin)
+    local speed = pin.speed or settings.global[const.name_setting_fluid_speed].value
+    pin.progress = pin.progress + speed
+    pin.pos, pin.seg = fluid_flow.along(pin.path, pin.cum, pin.progress, pin.seg)
+    if pin.progress < pin.cum[#pin.cum]
+        then return end
+
+    utility.debug("watchdog changing: fluid arrived at "..pin.kind)
+    fluid_flow.unhighlight(pin.highlight)
+    if pin.kind == "crafter" then
+        focus.watching = watchdog.create.item_in_crafting_machine(handle)
+    elseif pin.kind == "rail" then
+        focus.watching = watchdog.create.fluid_at_rail_pump(handle, pin.fluid)
+    else
+        focus.watching = watchdog.create.end_consumed(handle, pin.fluid)
+    end
+end
+
+--- @param focus FocusInstance
+--- @param handle LuaEntity
+tick_map["fluid-at-rail-pump"] = function (focus, handle)
+    if handle.pumped_last_tick <= 0
+        then return end
+    local wagon = fluid_flow.wagon_at_pump(handle)
+    if wagon == nil
+        then return end
+    utility.debug("watchdog changing: pump fills wagon")
+    focus.watching = watchdog.create.fluid_in_wagon(wagon, focus.watching.item_wl.fluid)
+end
+
+--- @param focus FocusInstance
+--- @param handle LuaEntity
+--- @param pin PinFluidInWagon
+tick_map["fluid-in-wagon"] = function (focus, handle, pin)
+    local train = handle.train
+    if train == nil or train.state ~= defines.train_state.wait_station
+        then return end
+    if pin.loaded_at == nil and train.station ~= nil then
+        -- Created while the train wasn't at a station yet
+        pin.loaded_at = train.station
+        return
+    end
+    if train.station == pin.loaded_at
+        then return end
+
+    local pump = fluid_flow.unloading_pump(handle)
+    if pump == nil
+        then return end
+    if pin.retry_tick ~= nil and game.tick < pin.retry_tick
+        then return end
+    local fluid = focus.watching.item_wl.fluid
+    local route = fluid_flow.route(pump, 1, fluid, focus.fluid_prefer and focus.fluid_prefer[fluid])
+    if route == nil then
+        pin.retry_tick = game.tick + const.fluid_route_retry_ticks
+        return
+    end
+    utility.debug("watchdog changing: pump empties wagon")
+    focus.watching = watchdog.create.fluid_in_pipes(route, fluid, focus.fluid_speed)
+end
+
+tick_map["end-consumed"] = function ()
+    -- End of the line
+end
+
 tick_map["end-lab"] = function ()
     -- End of the line
 end
@@ -552,8 +783,14 @@ local map_smooth_speed_in = {
     ["item-in-inserter-hand"] = smooth_type_linear,
     -- container -> loader, vector_to_place_result -> belt
     ["item-on-belt"] = smooth_type_linear,
+    -- crafter / wagon -> pipes
+    ["fluid-in-pipes"] = smooth_type_linear,
+    -- pump -> wagon
+    ["fluid-in-wagon"] = smooth_type_linear,
     -- tower -> plant
     ["plant-growing"] = smooth_type_linear,
+    -- dig site -> digosaur
+    ["digosaur-digging"] = smooth_type_linear,
 
     -- cargo pod -> container
     ["item-in-container-with-cargo-hatches"] = smooth_type_jump,
@@ -569,7 +806,9 @@ local map_smooth_speed_out = {
     -- loader -> container
     ["item-on-belt"] = smooth_type_linear,
     -- plant -> tower
-    ["plant-growing"] = smooth_type_linear
+    ["plant-growing"] = smooth_type_linear,
+    -- digosaur -> dig site
+    ["digosaur-digging"] = smooth_type_linear
 }
 
 --- @type FocusSmoothingState
@@ -675,6 +914,11 @@ local function apply_fn(map, focus, cause_entity)
 
     extend_smooth(focus, map_smooth_speed_out, last_watching.type)
     extend_smooth(focus, map_smooth_speed_in, focus.watching.type)
+    -- Skip ahead to another piece (belt/inserter): with skip_glide_speed the camera rides there at that steady
+    -- speed (tiles/tick) instead of 0.25 tiles/tick for 60 ticks and then snapping the rest of the way
+    if focus.skip_glide_speed and (focus.watching.skipped == "belt" or focus.watching.skipped == "inserter") then
+        focus.smoothing = {final_tick = game.tick + 60 * 60, speed = focus.skip_glide_speed}
+    end
     return true
 end
 

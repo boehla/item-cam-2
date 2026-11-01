@@ -27,6 +27,15 @@ If mod errors out while you're following something or it doesn't continue as you
 - Focus tracker doesn't know about when item spoils in container. Not yet
 
 ## Things that are planned to be trackable:
-- Fluids in general - pipes, fluid wagons, pumps, valves
+- Fluids in general - pipes, fluid wagons, pumps, valves (the py-2.1 fork follows crafted fluids, see below)
 - Crafting machines with recipes that have only fluid output
 - Non-SA satellite's Space science pack output
+
+## Fork (py-2.1) additions
+Fork used for the Pyanodons item cam videos on Factorio 2.1 (see `changelog.txt` 0.11.0 and 0.12.0):
+- **Fluids:** a crafted fluid takes the shortest pipe route (pumps only forward) to the next crafter using it, a rail
+  station pump or a consumer; cam glides along at setting "Fluid speed". At a station it rides along in the fluid wagon
+  and continues from the pump that empties it. The pipe network is highlighted with dashed, round-capped lines in the
+  fluid's color ("Highlight fluid networks"), because the game's own pipeline visualization can't be enabled by script.
+- Skip ahead when stuck, recipes with multiple outputs, construction robots building a ghost (end of the line),
+  robots leaving a roboport, Pyanodons digosaurs, circuit-switched recipes.

@@ -21,6 +21,12 @@ data:extend({{
     default_value = true,
     order = "b"
 }, {
+    type = "bool-setting",
+    name = "skip-ahead-belts",
+    setting_type = "runtime-global",
+    default_value = true,
+    order = "ba"
+}, {
     type = "int-setting",
     name = "skip-ahead-ticks",
     setting_type = "runtime-global",
@@ -37,4 +43,22 @@ data:extend({{
     default_value = "main-product",
     allowed_values = {"first-out", "main-product", "new-item"},
     order = "d"
+}})
+
+data:extend({{
+    type = "double-setting",
+    name = "fluid-speed",
+    setting_type = "runtime-global",
+    default_value = 0.09375, -- express belt, tiles per tick
+    minimum_value = 0.01,
+    maximum_value = 4,
+    order = "e"
+}})
+
+data:extend({{
+    type = "bool-setting",
+    name = "fluid-highlight",
+    setting_type = "runtime-global",
+    default_value = true,
+    order = "f"
 }})

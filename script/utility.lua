@@ -364,12 +364,15 @@ end
 --- @field item? PrototypeWithQuality
 --- @field items? string[]
 --- @field qualities? string[]
+--- @field fluid? string Followed fluid, items don't match
 
 utility.__no_wl = {}
 
 --- @param item LuaItemStack
 --- @param wl FocusItemWhitelist
 function utility.is_item_filtered(item, wl)
+    if wl.fluid ~= nil
+        then return false end
     if wl.item ~= nil and (
         item.name ~= wl.item.name
         or item.quality.name ~= wl.item.quality

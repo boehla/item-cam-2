@@ -1,4 +1,21 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.12.0
+Date: 2026-11-01
+  Features:
+    - Follows fluids: a crafted fluid takes the shortest pipe route (through tanks and pumps) to the next crafter that uses it, a rail station pump or a consumer, and cam glides along that route at setting "Fluid speed". At a station pump cam waits for a fluid wagon, rides along and continues from the pump that empties it at the other end
+    - Added setting "Fluid speed", express belt speed by default
+    - While cam follows a fluid, the pipe network lights up with dashed, round-capped lines in the fluid's color like the game's pipeline visualization, the route brighter (setting "Highlight fluid networks"), since the game's own pipeline visualization can't be turned on by script
+    - Added setting "Skip ahead on full belts" (on by default). Off: cam stays with its own item on a full belt instead of jumping to another piece, skipping ahead out of buildings stays on
+    - Follows robot items put into a roboport: cam rides along with the next robot of that kind that leaves it
+    - Follows food put into a Pyanodons dig site: cam rides along with the digosaur it sends off and comes back with its ore
+  Scripting:
+    - Watchdogs that skip ahead handed over to carry field skipped ("belt", "inserter" or "building")
+    - Scripted focuses can set prefer_products, fluid_prefer, fluid_speed and skip_glide_speed (camera glides to a skip-ahead target at a steady speed)
+  Bugfixes:
+    - Fixed following the wrong product when a circuit-controlled crafter switches its recipe as soon as the craft finishes
+    - Fixed losing focus when an inserter drops onto a short underground exit of a fast belt
+    - Fixed a robot delivering more of the same item to a requester chest being taken for ours
+---------------------------------------------------------------------------------------------------
 Version: 0.11.0
 Date: 2026-10-25
   Features:

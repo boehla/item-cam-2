@@ -37,6 +37,10 @@ local controllables = {
 --- @field surface LuaSurface
 --- @field seen_items? table<string, true> Items already followed, for multiple-outputs "new-item"
 --- @field multiple_outputs? string Overrides setting multiple-outputs for this focus
+--- @field prefer_products? string[] Scripted: products to follow out of a recipe before any other
+--- @field fluid_prefer? table<string, string[]> Scripted: per fluid, route targets (kind "rail", recipe or entity name) to go for first
+--- @field fluid_speed? number Scripted: overrides setting fluid-speed for this focus
+--- @field skip_glide_speed? number Scripted: camera glides to a skip-ahead target at this speed (tiles/tick)
 
 --- @param follow_rules? FollowRule[]
 function focus_behavior.create(follow_rules)
