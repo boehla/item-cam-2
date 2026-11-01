@@ -1,4 +1,6 @@
 # Item Cam 2
+> **This is a fork (branch `py-2.1`)** of [Item Cam 2](https://mods.factorio.com/mod/item-cam-2) by HermanyAI: ported to Factorio 2.1, follows fluids and a few more things. See `changelog.txt` 0.11.0 and 0.12.0.
+
 Follow an item around your base like in the Factorio trailer. Spiritual successor to [DaveMcW's Item Cam](https://mods.factorio.com/mod/itemcam), rewritten for 2.0 and Space Age content support.
 
 The default hotkey is `Alt + C`, also comes with shortcut "Follow item" in hotbar. When pressed, you select what you want to start follow. If it's supported, almost all GUI elements get hidden and your journey begins.
@@ -21,21 +23,14 @@ If mod errors out while you're following something or it doesn't continue as you
 - Inserters, chests, train cargo wagons, logistic bots picking up and delivering items
 - Mining drills, assemblers, furnaces (recyclers), etc. with ability to follow specific item out of multiple results
 - Space Age: Plants and how they grow, rockets and their cargo pods, space platform hubs and their cargo pods
+- *Fork:* crafted fluids, including recipes with only fluid output. A fluid takes the shortest route through pipes, tanks and pumps (pumps only forward) to the next crafter using it, a rail station pump or a consumer; cam glides along at setting "Fluid speed". At a station it rides along in the fluid wagon and continues from the pump that empties it. The pipe network is highlighted with dashed, round-capped lines in the fluid's color ("Highlight fluid networks"), since the game's own pipeline visualization can't be enabled by script
+- *Fork:* construction robots carrying the item to a ghost (cam rests on the new building), robots leaving a roboport, Pyanodons digosaurs
+- *Fork:* setting "Skip ahead when stuck" (jump to the frontmost same item on a full belt), setting "Recipes with multiple outputs"
 
 ## Limitations
 - You can't watch the cargo pod processions. It may be possible but was not visited yet
 - Focus tracker doesn't know about when item spoils in container. Not yet
+- Fluids (fork): only fluids that come out of a crafter are followed; the route is computed, since fluids in 2.0+ have no travel time. Fluids from offshore pumps or mining aren't a starting point
 
 ## Things that are planned to be trackable:
-- Fluids in general - pipes, fluid wagons, pumps, valves (the py-2.1 fork follows crafted fluids, see below)
-- Crafting machines with recipes that have only fluid output
 - Non-SA satellite's Space science pack output
-
-## Fork (py-2.1) additions
-Fork used for the Pyanodons item cam videos on Factorio 2.1 (see `changelog.txt` 0.11.0 and 0.12.0):
-- **Fluids:** a crafted fluid takes the shortest pipe route (pumps only forward) to the next crafter using it, a rail
-  station pump or a consumer; cam glides along at setting "Fluid speed". At a station it rides along in the fluid wagon
-  and continues from the pump that empties it. The pipe network is highlighted with dashed, round-capped lines in the
-  fluid's color ("Highlight fluid networks"), because the game's own pipeline visualization can't be enabled by script.
-- Skip ahead when stuck, recipes with multiple outputs, construction robots building a ghost (end of the line),
-  robots leaving a roboport, Pyanodons digosaurs, circuit-switched recipes.
